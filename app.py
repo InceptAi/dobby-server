@@ -7,9 +7,12 @@ import os
 from flask import Flask, request, make_response, abort, send_from_directory, redirect, url_for
 from werkzeug.utils import secure_filename
 
+import dobby
 
-#import my package
-#import dobby
+
+# Dobby stuff
+pm = dobby.ParseManager(max_summaries=100)
+
 
 # File upload stuff
 UPLOAD_FOLDER = '/tmp/dobby/'
@@ -32,7 +35,7 @@ def validate_json(filename):
             summary_json = json.load(file_stream)
     #except json.decoder.JSONDecodeError as e:
     except ValueError as e:
-        print ("Invalid JSON input ({0})".format(str(e.message)))
+        print ("Invalid JSON input ({0})".format(str(e)))
         return False
     except (OSError, IOError) as e:
         print ("Cannot read file {file_to_read}.".format(file_to_read=filename))
@@ -40,6 +43,21 @@ def validate_json(filename):
     else:
         return True
 
+def parse_summary(summary_file):
+    ns = None
+    if 'node' in summary_file.lower():
+        with open(summary_file) as f:
+            ns = pm.parse_summary(node_stream=f)
+    elif 'wireless' in summary_file.lower():
+        with open(summary_file) as f:
+            ns = pm.parse_summary(wireless_stream=f)
+    elif 'tcploss' in summary_file.lower():
+        with open(summary_file) as f:
+            ns = pm.parse_summary(tcploss_stream=f)
+    elif 'tcploss' in summary_file.lower():
+        with open(summary_file) as f:
+            ns = pm.parse_summary(tcpmystery_stream=f)
+    return ns
 
 
 @app.route('/')
@@ -68,6 +86,8 @@ def upload_summary():
             #uploaded_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             valid_summary_file = validate_json(path_to_save_file)
             if valid_summary_file:
+                ns = parse_summary(path_to_save_file)
+                print ("Network Summary:{0}".format(str(ns)))
                 resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename), 201)
                 SUMMARY_ID = SUMMARY_ID + 1
                 resp.headers['Location'] = '/summaries/' + str(SUMMARY_ID)
@@ -129,5 +149,4 @@ def makeWebhookResult(req):
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     print ("Starting app on port %d" % port)
-
     app.run(debug=True, port=port, host='0.0.0.0')
