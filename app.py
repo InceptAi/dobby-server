@@ -24,6 +24,15 @@ SUMMARY_ID=0
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+def create_dir_if_not_present(dirpath):
+    try:
+        os.makedirs(dirpath, exist_ok=True)
+    except OSError:
+        print("Error while creating dir:{0}. Error:{1}".format(dirpath, str(e)))
+        return False
+    else:
+        return True
+
 def allowed_file(filename):
     return '.' in filename and \
         filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -147,6 +156,10 @@ def makeWebhookResult(req):
 
 
 if __name__ == '__main__':
+    dir_created = create_dir_if_not_present(app.config['UPLOAD_FOLDER'])
+    if not dir_created:
+        print("Unable to create dir:{0}".format(app.config['UPLOAD_FOLDER']))
+        raise 
     port = int(os.getenv('PORT', 5000))
     print ("Starting app on port %d" % port)
     app.run(debug=True, port=port, host='0.0.0.0')
