@@ -52,21 +52,30 @@ def validate_json(filename):
     else:
         return True
 
-def parse_summary(summary_file):
-    ns = None
+def parse_summary(wireless_file=None, node_file=None,
+                  tcploss_file=None, tcpmystery_file=None):
+    stream_dict = {}
+    if wireless_file:
+        stream_dict['wireless_stream'] = open(wireless_file)
+    if node_file:
+        stream_dict['node_stream'] = open(node_file)
+    if tcploss_file:
+        stream_dict['tcploss_stream'] = open(tcploss_file)
+    if tcpmystery_file:
+        stream_dict['tcpmystery_stream'] = open(tcpmystery_file)
+    return pm.parse_summary(**stream_dict)
+
+def get_summary_type(summary_file):
+    file_type = None
     if 'node' in summary_file.lower():
-        with open(summary_file) as f:
-            ns = pm.parse_summary(node_stream=f)
+        file_type = 'node_file'
     elif 'wireless' in summary_file.lower():
-        with open(summary_file) as f:
-            ns = pm.parse_summary(wireless_stream=f)
+        file_type = 'wireless_file'
     elif 'tcploss' in summary_file.lower():
-        with open(summary_file) as f:
-            ns = pm.parse_summary(tcploss_stream=f)
-    elif 'tcploss' in summary_file.lower():
-        with open(summary_file) as f:
-            ns = pm.parse_summary(tcpmystery_stream=f)
-    return ns
+        file_type = 'tcploss_file'
+    elif 'tcpmystery' in summary_file.lower():
+        file_type = 'tcpmystery_file'
+    return file_type
 
 
 @app.route('/')
@@ -78,37 +87,38 @@ def upload_summary():
     global SUMMARY_ID
     if request.method == 'POST':
         # check if the post request has the file part
-        if 'file' not in request.files:
-            flash('No file part')
+        uploaded_files = request.files.getlist('summary_files')
+        
+        if not uploaded_files or len(uploaded_files) == 0:
+            flash('No files')
             return redirect(request.url)
-        uploaded_file = request.files['file']
-        # if user does not select file, browser also
-        # submit a empty part without filename
-        if uploaded_file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
-        if uploaded_file and allowed_file(uploaded_file.filename):
-            filename = secure_filename(uploaded_file.filename)
-            path_to_save_file = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            print ("Path to save file:{0}".format(path_to_save_file))
-            uploaded_file.save(path_to_save_file)
-            #uploaded_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            valid_summary_file = validate_json(path_to_save_file)
-            if valid_summary_file:
-                ns = parse_summary(path_to_save_file)
-                print ("Network Summary:{0}".format(str(ns)))
-                resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename), 201)
-                SUMMARY_ID = SUMMARY_ID + 1
-                resp.headers['Location'] = '/summaries/' + str(SUMMARY_ID)
-            else:
-                resp = make_response("Invalid summary format. Needs well formed json", 415)
-            return resp
+        
+        files_dict = {}
+        for uploaded_file in uploaded_files:
+            if uploaded_file and allowed_file(uploaded_file.filename):
+                filename = secure_filename(uploaded_file.filename)
+                full_file_name = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                uploaded_file.save(full_file_name)
+                valid_summary_file = validate_json(full_file_name)
+                if valid_summary_file:
+                    summary_type = get_summary_type(full_file_name)
+                    if summary_type:
+                        files_dict[summary_type] = full_file_name
+                else:
+                    resp = make_response("Invalid summary format.Needs well formed json", 415)
+                    return resp
+
+        ns = parse_summary(**files_dict)
+        print ("Latest Network Summary:{0}".format(str(ns)))
+        resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename), 201)
+        SUMMARY_ID = SUMMARY_ID + 1
+        resp.headers['Location'] = '/summaries/' + str(SUMMARY_ID)
     return '''
         <!doctype html>
-        <title>Upload new File</title>
-        <h1>Upload new File</h1>
+        <title>Upload new Files</title>
+        <h1>Upload new Files</h1>
         <form method=post enctype=multipart/form-data>
-        <p><input type=file name=file>
+        <p><input type=file name=summaryfiles multiple>
         <input type=submit value=Upload>
         </form>
     '''
