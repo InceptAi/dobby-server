@@ -87,12 +87,12 @@ def upload_summary():
     global SUMMARY_ID
     if request.method == 'POST':
         # check if the post request has the file part
-        uploaded_files = request.files.getlist('summary_files')
-        
+        uploaded_files = request.files.getlist('summaryfiles')
+
         if not uploaded_files or len(uploaded_files) == 0:
             flash('No files')
             return redirect(request.url)
-        
+
         files_dict = {}
         for uploaded_file in uploaded_files:
             if uploaded_file and allowed_file(uploaded_file.filename):
@@ -105,14 +105,17 @@ def upload_summary():
                     if summary_type:
                         files_dict[summary_type] = full_file_name
                 else:
-                    resp = make_response("Invalid summary format.Needs well formed json", 415)
+                    resp = make_response(("Invalid summary format. Needs well formed json.\
+                                           Error file:{0}".format(uploaded_file.filename)),
+                                           415)
                     return resp
 
         ns = parse_summary(**files_dict)
         print ("Latest Network Summary:{0}".format(str(ns)))
-        resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename), 201)
+        resp = make_response(str(ns), 201)
         SUMMARY_ID = SUMMARY_ID + 1
         resp.headers['Location'] = '/summaries/' + str(SUMMARY_ID)
+        return resp
     return '''
         <!doctype html>
         <title>Upload new Files</title>
